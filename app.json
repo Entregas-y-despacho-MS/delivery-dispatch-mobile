@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Despachos",
+    "slug": "delivery-dispatch-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "despachos",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "web": {
+      "bundler": "metro"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.grupoh.despachos"
+    },
+    "android": {
+      "package": "com.grupoh.despachos",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B1F3A"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Despachos necesita tu ubicación para actualizar el seguimiento de las entregas activas.",
+          "locationAlwaysAndWhenInUsePermission": "Despachos necesita tu ubicación en segundo plano mientras tengas una ruta activa."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permite seleccionar evidencia fotográfica de la entrega."
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "http://localhost:3000/api"
+    }
+  }
+}

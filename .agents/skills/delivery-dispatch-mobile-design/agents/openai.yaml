@@ -1,0 +1,5 @@
+interface:
+  display_name: "Delivery Dispatch Mobile Design"
+  short_description: "Diseña interfaces móviles consistentes para Delivery Dispatch"
+  brand_color: "#FA7B32"
+  default_prompt: "Usa $delivery-dispatch-mobile-design para diseñar esta pantalla móvil con los patrones visuales de Delivery Dispatch."
