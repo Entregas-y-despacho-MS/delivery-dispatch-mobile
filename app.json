@@ -35,7 +35,8 @@
         {
           "photosPermission": "Permite seleccionar evidencia fotográfica de la entrega."
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "extra": {
       "apiUrl": "http://localhost:3000/api"
