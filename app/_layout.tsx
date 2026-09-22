@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/query/query-client';
 import { initDatabase } from '@/lib/database';
+import { syncService } from '@/lib/sync';
 import { LoadingView } from '@/components/ui/StateView';
 
 export default function RootLayout() {
@@ -13,9 +14,11 @@ export default function RootLayout() {
   useEffect(() => {
     let isMounted = true;
     initDatabase()
-      .then(() => {
+      .then(async () => {
         if (isMounted) {
           setIsDbReady(true);
+          // Iniciar el servicio de sincronización en segundo plano
+          await syncService.startSyncService();
         }
       })
       .catch((error) => {
@@ -28,6 +31,7 @@ export default function RootLayout() {
 
     return () => {
       isMounted = false;
+      syncService.stopSyncService();
     };
   }, []);
 
