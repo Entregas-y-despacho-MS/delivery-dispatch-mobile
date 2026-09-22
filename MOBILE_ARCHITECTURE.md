@@ -191,9 +191,25 @@ Wrapper genérico para `expo-secure-store`. Úsalo para secretos, tokens o crede
 
 Wrapper genérico para valores persistentes no sensibles. No guardes tokens aquí.
 
-### `lib/sync/sync-queue.ts`
+### `lib/database/` (Persistencia Local SQLite — ST-79.1)
 
-Cola genérica de operaciones pendientes. Solo administra entradas serializables, intentos y eliminación; no decide qué significa cada evento.
+Motor de persistencia local embebido en SQLite (`expo-sqlite`) para almacenamiento de eventos fuera de línea (RF-U13):
+
+- `connection.ts`: Conexión asíncrona singleton configurada en modo `WAL` (`PRAGMA journal_mode = WAL;`) para operaciones sin bloqueo de la UI.
+- `schema.ts`: DDL de la tabla `local_events` (id, dispatch_id, event_type, payload, created_at, sync_status, synced_at, attempts, last_error) e índices de consulta.
+- `crypto.ts`: Cifrado y descifrado AES-256-CBC para el campo `payload` con clave de 256 bits resguardada en `SecureStore`.
+- `uuid.ts`: Generador de UUID v7 conforme a RFC 9562 para PKs de incidencias y evidencias consistentes con PostgreSQL.
+- `repositories/local-event.repository.ts`: Métodos transaccionales para inserción atómica de estados (`RF-U04`), incidencias (`RF-U06`) y evidencias (`RF-U05`), y lectura FIFO (`getPendingEvents`).
+
+### `lib/sync/` (Sincronización en Background — ST-79.2)
+
+Servicio de sincronización en segundo plano con detección de red y despacho secuencial:
+
+- `network.ts`: Wrapper sobre `@react-native-community/netinfo` para detección reactiva de transiciones online/offline.
+- `backoff.ts`: Cálculo de reintentos con backoff exponencial ($1\text{s} \rightarrow 2\text{s} \dots \le 60\text{s}$) y jitter ($\pm 15\%$) ante errores 5xx/red, y descarte de errores cliente 4xx.
+- `event-dispatcher.ts`: Despachador HTTP hacia los endpoints REST del backend (`PATCH /dispatches/:id/status`, `POST /dispatches/:id/incidents`, `POST /dispatches/:id/evidences`).
+- `sync-service.ts`: Orquestador de cola FIFO que procesa eventos uno a uno preservando el orden de dependencias de estado por despacho y purga registros antiguos.
+- `hooks/use-sync-status.ts`: Hook React para exponer `isOnline`, `isSyncing`, `pendingCount`, `failedCount` y `syncNow()` a la UI.
 
 ## 7. Carpetas `src/config`, `src/theme` y `src/types`
 

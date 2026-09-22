@@ -41,8 +41,9 @@ La app inicia en un shell navegable sin datos ni lógica de negocio. Para conect
 
 - `TanStack Query` para estado remoto, caché e invalidación.
 - `SecureStore` y AsyncStorage encapsulados como infraestructura reutilizable.
-- Cola de sincronización genérica sin eventos ni reglas de negocio.
-- Cliente HTTP preparado para inyección de token sin conocer autenticación.
+- `SQLite` embebido (`expo-sqlite` en modo WAL) con cifrado AES-256-CBC de payloads y UUID v7 para persistencia offline (ST-79.1).
+- `SyncService` con detección reactiva de red (`NetInfo`), cola secuencial FIFO y reintentos con backoff exponencial y jitter (ST-79.2).
+- Cliente HTTP (`apiClient`) preparado para inyección de token sin conocer autenticación.
 - Expo Router con shell de autenticación, tabs y rutas dinámicas.
 - `NativeWind` v4 configurado para usar clases Tailwind en componentes React Native.
 
