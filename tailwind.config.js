@@ -1,19 +1,23 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: 'class',
   content: ['./app/**/*.{js,jsx,ts,tsx}', './src/**/*.{js,jsx,ts,tsx}'],
   presets: [require('nativewind/preset')],
   theme: {
     extend: {
       colors: {
-        navy: '#0B1F3A',
-        'navy-light': '#173A68',
-        brand: '#2563EB',
-        'brand-soft': '#E9F0FF',
-        ink: '#172033',
-        slate: '#617087',
-        muted: '#8A97AA',
-        border: '#E3E8F0',
-        canvas: '#F6F8FC',
+        navy: '#265C7F',
+        'navy-light': '#347895',
+        brand: '#265C7F',
+        'brand-soft': '#DDF3FE',
+        turquoise: '#469DB0',
+        action: '#E18641',
+        'action-soft': '#FFF0E2',
+        ink: '#1F2730',
+        slate: '#526471',
+        muted: '#6F8090',
+        border: '#D7E4EB',
+        canvas: '#F8FBFD',
         danger: '#B91C1C',
       },
     },
