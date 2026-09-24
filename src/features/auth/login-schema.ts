@@ -1,17 +1,19 @@
 import * as yup from 'yup';
 
-const emailSchema = yup.string().email().matches(/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/);
-
 export const loginSchema = yup.object({
   identifier: yup
     .string()
     .trim()
-    .required('Ingresa tu usuario o correo.')
-    .test('email-format', 'Ingresa un correo válido.', (value) => !value || !value.includes('@') || emailSchema.isValidSync(value)),
+    .required('Ingresa tu usuario.'),
   password: yup
     .string()
     .required('Ingresa tu contraseña.')
     .test('not-blank', 'Ingresa tu contraseña.', (value) => Boolean(value?.trim())),
+  totpCode: yup.string().optional().test(
+    'totp-format',
+    'El código debe tener 6 dígitos.',
+    (value) => !value || /^\d{6}$/.test(value),
+  ),
 });
 
 export type LoginFormValues = yup.InferType<typeof loginSchema>;

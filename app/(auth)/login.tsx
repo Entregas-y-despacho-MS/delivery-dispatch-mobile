@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
+import axios from 'axios';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from 'lucide-react-native';
 import { Controller, useForm } from 'react-hook-form';
 import Svg, { Path } from 'react-native-svg';
 import { AppText, PrimaryButton, Screen, TextField } from '@/components/ui';
 import { loginSchema, type LoginFormValues } from '@/features/auth/login-schema';
+import { signIn } from '@/features/auth/auth-service';
 import { colors } from '@/theme/tokens';
 
 function BrandMark() {
@@ -33,17 +35,51 @@ function RouteArtwork() {
 
 export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
-  const { control, handleSubmit, formState: { isSubmitting } } = useForm<LoginFormValues>({
+  const [requiresTotp, setRequiresTotp] = useState(false);
+  const { control, handleSubmit, setError, formState: { isSubmitting } } = useForm<LoginFormValues>({
     resolver: yupResolver(loginSchema),
     mode: 'onChange',
     reValidateMode: 'onChange',
-    defaultValues: { identifier: '', password: '' },
+    defaultValues: { identifier: '', password: '', totpCode: '' },
   });
 
-  const submit = handleSubmit(async () => {
-    // Preview the loading state until the authentication service is connected.
-    await new Promise<void>((resolve) => setTimeout(resolve, 650));
-    router.replace('/(app)/(tabs)');
+  const submit = handleSubmit(async ({ identifier, password, totpCode }) => {
+    if (requiresTotp && !/^\d{6}$/.test(totpCode ?? '')) {
+      setError('totpCode', { message: 'Ingresa el código de 6 dígitos.' });
+      return;
+    }
+    try {
+      await signIn(identifier, password, totpCode);
+      router.replace('/(app)/(tabs)');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const code = (error.response?.data as { error?: string } | undefined)?.error;
+        if (code === 'TOTP_REQUIRED') {
+          setRequiresTotp(true);
+          Alert.alert('Verificación requerida', 'Ingresa el código de tu aplicación de autenticación.');
+          return;
+        }
+        if (code === 'INVALID_TOTP_CODE') {
+          setError('totpCode', { message: 'El código no es válido.' });
+          return;
+        }
+        if (code === 'ACCOUNT_LOCKED') {
+          Alert.alert('Cuenta bloqueada', 'Espera unos minutos antes de volver a intentarlo.');
+          return;
+        }
+        if (error.response?.status === 401) {
+          Alert.alert('No se pudo iniciar sesión', 'Revisa tu usuario y contraseña.');
+          return;
+        }
+        if (!error.response) {
+          Alert.alert('Sin conexión', 'No se pudo conectar al servidor. Revisa tu conexión e inténtalo de nuevo.');
+          return;
+        }
+        Alert.alert('Error del servidor', 'No se pudo iniciar sesión en este momento. Inténtalo de nuevo.');
+        return;
+      }
+      Alert.alert('No se pudo iniciar sesión', error instanceof Error ? error.message : 'Inténtalo de nuevo.');
+    }
   });
 
   return (
@@ -82,13 +118,13 @@ export default function LoginScreen() {
                 name="identifier"
                 render={({ field, fieldState }) => (
                   <TextField
-                    label="Usuario o correo"
+                    label="Usuario"
                     value={field.value}
                     onChangeText={field.onChange}
                     onBlur={field.onBlur}
                     inputRef={field.ref}
                     error={fieldState.error?.message}
-                    placeholder="Tu usuario o correo"
+                    placeholder="Tu usuario"
                     autoCapitalize="none"
                     autoCorrect={false}
                     autoComplete="username"
@@ -126,6 +162,26 @@ export default function LoginScreen() {
                   />
                 )}
               />
+              {requiresTotp ? (
+                <Controller
+                  control={control}
+                  name="totpCode"
+                  render={({ field, fieldState }) => (
+                    <TextField
+                      label="Código de verificación"
+                      value={field.value ?? ''}
+                      onChangeText={field.onChange}
+                      onBlur={field.onBlur}
+                      inputRef={field.ref}
+                      error={fieldState.error?.message}
+                      placeholder="6 dígitos"
+                      keyboardType="numeric"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  )}
+                />
+              ) : null}
             </View>
 
             <Pressable

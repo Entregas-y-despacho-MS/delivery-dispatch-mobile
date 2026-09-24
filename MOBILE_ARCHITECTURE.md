@@ -6,7 +6,7 @@ Guía de arquitectura, estructura y reglas de trabajo para la aplicación móvil
 
 Este repositorio es el starter kit móvil de Delivery Dispatch. Está construido con:
 
-- Expo SDK 52.
+- Expo SDK 57.
 - React Native.
 - TypeScript.
 - Expo Router.
@@ -60,7 +60,7 @@ delivery-dispatch-mobile/
 │   ├── index.tsx                     # Entrada inicial de la aplicación
 │   ├── (auth)/                       # Grupo visual de autenticación
 │   │   ├── _layout.tsx               # Stack de autenticación
-│   │   └── login.tsx                 # Shell visual de acceso, sin auth real
+│   │   └── login.tsx                 # Login conectado al backend
 │   └── (app)/                        # Shell principal de la aplicación
 │       ├── _layout.tsx               # Stack principal
 │       ├── (tabs)/                   # Navegación principal por tabs
@@ -73,7 +73,7 @@ delivery-dispatch-mobile/
 ├── src/
 │   ├── components/ui/                # Primitivas visuales reutilizables
 │   ├── config/                       # Configuración de entorno
-│   ├── features/                     # Espacio reservado para futuros módulos
+│   ├── features/auth/                # Sesión, login y renovación de tokens
 │   ├── lib/                          # Infraestructura transversal
 │   ├── theme/                        # Tokens de diseño TypeScript
 │   └── types/                        # Tipos genéricos compartidos
@@ -96,24 +96,24 @@ Expo Router transforma los archivos de `app/` en rutas. Las carpetas entre paré
 
 ### `app/_layout.tsx`
 
-Es el layout raíz. Configura `QueryClientProvider`, importa `global.css` y monta el `Stack` raíz. No debe contener reglas de dominio ni resolver autenticación.
+Es el layout raíz. Configura `QueryClientProvider`, importa `global.css` e inicializa SQLite y la sesión antes de montar el `Stack`. La sincronización se ejecuta únicamente con sesión autenticada.
 
 ### `app/index.tsx`
 
-Es la entrada de la app. Actualmente redirige al shell de acceso para que la navegación pueda probarse sin implementar login real.
+Es la entrada de la app. Redirige al login o a las pestañas según la sesión restaurada.
 
 ### `app/(auth)/`
 
-Contiene el flujo visual de acceso.
+Contiene el flujo de acceso.
 
-- `_layout.tsx`: configura el Stack del grupo de autenticación.
-- `login.tsx`: muestra campos y navega al shell principal. El botón solo prueba navegación; no valida credenciales ni guarda sesión.
+- `_layout.tsx`: configura el Stack del grupo y redirige a la app si ya existe sesión.
+- `login.tsx`: valida campos, llama a `POST /auth/login` y muestra errores de credenciales y código TOTP.
 
 ### `app/(app)/`
 
 Contiene el shell principal.
 
-- `_layout.tsx`: configura el Stack de la app.
+- `_layout.tsx`: configura el Stack de la app y devuelve al login cuando expira la sesión.
 - `(tabs)/_layout.tsx`: define los destinos principales y sus iconos.
 - `(tabs)/index.tsx`: pantalla inicial de shell.
 - `(tabs)/history.tsx`: placeholder para un futuro módulo de historial.
@@ -171,13 +171,11 @@ import { AppText, Card, PrimaryButton, Screen } from '@/components/ui';
 
 ### `lib/http/api-client.ts`
 
-Cliente Axios genérico con `baseURL`, timeout y un proveedor opcional de token. No conoce autenticación ni endpoints de negocio.
+Cliente Axios de peticiones privadas con `baseURL` y timeout. Añade el access token como Bearer, coordina una sola renovación ante respuestas 401 y reintenta la petición una vez. Si el refresh token es rechazado, borra la sesión; los layouts redirigen al login.
 
-```ts
-configureTokenProvider(async () => tokenOrNull);
-```
+### `features/auth/`
 
-La función que entregue el token deberá pertenecer a la futura capa de sesión, no al cliente HTTP.
+`session.ts` guarda el par Access/Refresh Token con `expo-secure-store` y expone el estado de sesión. `auth-service.ts` usa un cliente HTTP público para login, refresh y logout. Al arrancar, intenta renovar el token persistido; un fallo de red mantiene el acceso a datos locales sin borrar credenciales.
 
 ### `lib/query/query-client.ts`
 
@@ -185,7 +183,7 @@ Instancia central de TanStack Query con configuración base de cache y reintento
 
 ### `lib/storage/secure-storage.ts`
 
-Wrapper genérico para `expo-secure-store`. Úsalo para secretos, tokens o credenciales cuando el módulo de autenticación sea implementado.
+Wrapper genérico para `expo-secure-store`. La sesión guarda los tokens en un solo registro seguro para que la rotación no deje un par incompleto.
 
 ### `lib/storage/async-storage.ts`
 

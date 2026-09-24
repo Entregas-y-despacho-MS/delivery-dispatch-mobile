@@ -7,35 +7,45 @@ import { queryClient } from '@/lib/query/query-client';
 import { initDatabase } from '@/lib/database';
 import { syncService } from '@/lib/sync';
 import { LoadingView } from '@/components/ui/StateView';
+import { initializeSession } from '@/features/auth/auth-service';
+import { useSessionStatus } from '@/features/auth/session';
 
 export default function RootLayout() {
+  const [isReady, setIsReady] = useState(false);
   const [isDbReady, setIsDbReady] = useState(false);
+  const sessionStatus = useSessionStatus();
 
   useEffect(() => {
     let isMounted = true;
-    initDatabase()
-      .then(async () => {
-        if (isMounted) {
-          setIsDbReady(true);
-          // Iniciar el servicio de sincronización en segundo plano
-          await syncService.startSyncService();
-        }
-      })
-      .catch((error) => {
+    Promise.allSettled([initDatabase(), initializeSession()]).then(([database, session]) => {
+      if (database.status === 'rejected') {
+        const error = database.reason;
         console.error('Error inicializando la base de datos local SQLite:', error);
-        // Permitir continuar en caso de fallo para no romper el montaje de la UI
-        if (isMounted) {
-          setIsDbReady(true);
-        }
-      });
+      }
+      if (session.status === 'rejected') {
+        console.error('Error restaurando la sesión:', session.reason);
+      }
+      if (!isMounted) return;
+      setIsDbReady(database.status === 'fulfilled');
+      setIsReady(true);
+    });
 
     return () => {
       isMounted = false;
-      syncService.stopSyncService();
     };
   }, []);
 
-  if (!isDbReady) {
+  useEffect(() => {
+    if (isReady && isDbReady && sessionStatus === 'authenticated') {
+      void syncService.startSyncService().catch((error) => {
+        console.error('Error iniciando la sincronización:', error);
+      });
+      return () => syncService.stopSyncService();
+    }
+    syncService.stopSyncService();
+  }, [isReady, isDbReady, sessionStatus]);
+
+  if (!isReady || sessionStatus === 'loading') {
     return (
       <View className="flex-1 items-center justify-center bg-canvas">
         <LoadingView />
@@ -49,4 +59,3 @@ export default function RootLayout() {
     </QueryClientProvider>
   );
 }
-
