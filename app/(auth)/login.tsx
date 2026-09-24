@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
-import axios, { AxiosHeaders, type AxiosResponse } from 'axios';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from 'lucide-react-native';
 import { Controller, useForm } from 'react-hook-form';
 import Svg, { Path } from 'react-native-svg';
 import { AppText, PrimaryButton, Screen, TextField } from '@/components/ui';
 import { loginSchema, type LoginFormValues } from '@/features/auth/login-schema';
+import { getLoginFailure } from '@/features/auth/login-error';
 import { signIn } from '@/features/auth/auth-service';
 import { colors } from '@/theme/tokens';
 
@@ -33,26 +33,6 @@ function RouteArtwork() {
   );
 }
 
-function lockoutMessage(headers: AxiosResponse['headers'] | undefined) {
-  const retryAfter = headers instanceof AxiosHeaders
-    ? headers.get('Retry-After')
-    : headers?.['retry-after'] ?? headers?.['Retry-After'];
-  if (typeof retryAfter !== 'string') {
-    return 'Tu cuenta está bloqueada temporalmente. Inténtalo de nuevo más tarde.';
-  }
-
-  const seconds = Number(retryAfter);
-  const remainingSeconds = Number.isFinite(seconds)
-    ? seconds
-    : (Date.parse(retryAfter) - Date.now()) / 1000;
-  if (!Number.isFinite(remainingSeconds) || remainingSeconds <= 0) {
-    return 'Tu cuenta está bloqueada temporalmente. Inténtalo de nuevo más tarde.';
-  }
-
-  const minutes = Math.ceil(remainingSeconds / 60);
-  return `Tu cuenta está bloqueada. Inténtalo de nuevo en ${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}.`;
-}
-
 export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [requiresTotp, setRequiresTotp] = useState(false);
@@ -72,33 +52,17 @@ export default function LoginScreen() {
       await signIn(identifier, password, totpCode);
       router.replace('/(app)/(tabs)');
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const code = (error.response?.data as { error?: string } | undefined)?.error;
-        if (code === 'TOTP_REQUIRED') {
-          setRequiresTotp(true);
-          Alert.alert('Verificación requerida', 'Ingresa el código de tu aplicación de autenticación.');
-          return;
-        }
-        if (code === 'INVALID_TOTP_CODE') {
-          setError('totpCode', { message: 'El código no es válido.' });
-          return;
-        }
-        if (code === 'ACCOUNT_LOCKED' || error.response?.status === 423) {
-          Alert.alert('Cuenta bloqueada', lockoutMessage(error.response?.headers));
-          return;
-        }
-        if (error.response?.status === 401) {
-          Alert.alert('No se pudo iniciar sesión', 'Revisa tu usuario y contraseña.');
-          return;
-        }
-        if (!error.response) {
-          Alert.alert('Sin conexión', 'No se pudo conectar al servidor. Revisa tu conexión e inténtalo de nuevo.');
-          return;
-        }
-        Alert.alert('Error del servidor', 'No se pudo iniciar sesión en este momento. Inténtalo de nuevo.');
+      const failure = getLoginFailure(error);
+      if (failure.kind === 'totp-required') {
+        setRequiresTotp(true);
+        Alert.alert('Verificación requerida', 'Ingresa el código de tu aplicación de autenticación.');
         return;
       }
-      Alert.alert('No se pudo iniciar sesión', error instanceof Error ? error.message : 'Inténtalo de nuevo.');
+      if (failure.kind === 'invalid-totp') {
+        setError('totpCode', { message: 'El código no es válido.' });
+        return;
+      }
+      Alert.alert(failure.title, failure.message);
     }
   });
 
