@@ -60,9 +60,11 @@ function createHarness(adapter, storedTokens = null) {
 
 test('login stores the token pair and private requests carry Bearer', async () => {
   const harness = createHarness(async (config) => {
-    if (config.url === '/auth/login') return ok(config, {
-      accessToken: 'A1', refreshToken: 'R1', mustChangePassword: false,
-    });
+    if (config.url === '/auth/login') {
+      assert.equal(config.baseURL, 'http://test/api');
+      assert.deepEqual(JSON.parse(config.data), { username: 'driver', password: 'secret' });
+      return ok(config, { accessToken: 'A1', refreshToken: 'R1', mustChangePassword: false });
+    }
     if (config.url === '/private') return ok(config, {
       authorization: config.headers.get('Authorization'),
     });
@@ -75,6 +77,23 @@ test('login stores the token pair and private requests carry Bearer', async () =
     accessToken: 'A1', refreshToken: 'R1',
   });
   assert.equal((await harness.api.get('/private')).data.authorization, 'Bearer A1');
+});
+
+test('invalid credentials do not create a secure session', async () => {
+  const harness = createHarness(async (config) => {
+    if (config.url !== '/auth/login') throw new Error(`Unexpected URL: ${config.url}`);
+    assert.deepEqual(JSON.parse(config.data), { username: 'driver', password: 'wrong' });
+    throw new axios.AxiosError('Unauthorized', 'ERR_BAD_REQUEST', config, null, {
+      config, data: { error: 'INVALID_CREDENTIALS' }, headers: {}, status: 401, statusText: 'Unauthorized',
+    });
+  });
+
+  await assert.rejects(harness.auth.signIn(' driver ', 'wrong'), (error) => {
+    assert.equal(error.response?.data?.error, 'INVALID_CREDENTIALS');
+    return true;
+  });
+  assert.equal(harness.storage.size, 0);
+  assert.equal(harness.session.getSessionTokens(), null);
 });
 
 test('concurrent 401 responses rotate the refresh token once and retry', async () => {
