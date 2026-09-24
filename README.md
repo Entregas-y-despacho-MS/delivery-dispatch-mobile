@@ -35,7 +35,7 @@ Para validar TypeScript:
 npm run typecheck
 ```
 
-La app inicia en un shell navegable sin datos ni lógica de negocio. Para conectar el backend, define `EXPO_PUBLIC_API_URL` y agrega módulos dentro de `src/features`; la infraestructura compartida y las rutas pueden mantenerse sin cambios.
+La app restaura la sesión al arrancar y protege las rutas privadas. Define `EXPO_PUBLIC_API_URL` con la dirección del backend accesible desde el teléfono; la URL debe incluir `/api`.
 
 ## Decisiones base
 
@@ -43,7 +43,7 @@ La app inicia en un shell navegable sin datos ni lógica de negocio. Para conect
 - `SecureStore` y AsyncStorage encapsulados como infraestructura reutilizable.
 - `SQLite` embebido (`expo-sqlite` en modo WAL) con cifrado AES-256-CBC de payloads y UUID v7 para persistencia offline (ST-79.1).
 - `SyncService` con detección reactiva de red (`NetInfo`), cola secuencial FIFO y reintentos con backoff exponencial y jitter (ST-79.2).
-- Cliente HTTP (`apiClient`) preparado para inyección de token sin conocer autenticación.
+- Cliente HTTP (`apiClient`) con Bearer automático, renovación coordinada del token y cierre de sesión ante un 401 definitivo.
 - Expo Router con shell de autenticación, tabs y rutas dinámicas.
 - `NativeWind` v4 configurado para usar clases Tailwind en componentes React Native.
 
