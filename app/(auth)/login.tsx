@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
-import axios from 'axios';
+import axios, { AxiosHeaders, type AxiosResponse } from 'axios';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from 'lucide-react-native';
 import { Controller, useForm } from 'react-hook-form';
@@ -31,6 +31,26 @@ function RouteArtwork() {
       />
     </View>
   );
+}
+
+function lockoutMessage(headers: AxiosResponse['headers'] | undefined) {
+  const retryAfter = headers instanceof AxiosHeaders
+    ? headers.get('Retry-After')
+    : headers?.['retry-after'] ?? headers?.['Retry-After'];
+  if (typeof retryAfter !== 'string') {
+    return 'Tu cuenta está bloqueada temporalmente. Inténtalo de nuevo más tarde.';
+  }
+
+  const seconds = Number(retryAfter);
+  const remainingSeconds = Number.isFinite(seconds)
+    ? seconds
+    : (Date.parse(retryAfter) - Date.now()) / 1000;
+  if (!Number.isFinite(remainingSeconds) || remainingSeconds <= 0) {
+    return 'Tu cuenta está bloqueada temporalmente. Inténtalo de nuevo más tarde.';
+  }
+
+  const minutes = Math.ceil(remainingSeconds / 60);
+  return `Tu cuenta está bloqueada. Inténtalo de nuevo en ${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}.`;
 }
 
 export default function LoginScreen() {
@@ -63,8 +83,8 @@ export default function LoginScreen() {
           setError('totpCode', { message: 'El código no es válido.' });
           return;
         }
-        if (code === 'ACCOUNT_LOCKED') {
-          Alert.alert('Cuenta bloqueada', 'Espera unos minutos antes de volver a intentarlo.');
+        if (code === 'ACCOUNT_LOCKED' || error.response?.status === 423) {
+          Alert.alert('Cuenta bloqueada', lockoutMessage(error.response?.headers));
           return;
         }
         if (error.response?.status === 401) {
