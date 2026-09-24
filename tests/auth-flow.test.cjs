@@ -17,6 +17,7 @@ function unauthorized(config) {
 
 function createHarness(adapter, storedTokens = null) {
   const storage = new Map();
+  const secureStoreCalls = { get: [], set: [], delete: [] };
   if (storedTokens) storage.set('flash-pack.auth.tokens.v1', JSON.stringify(storedTokens));
   axios.defaults.adapter = adapter;
   const modules = {};
@@ -27,6 +28,7 @@ function createHarness(adapter, storedTokens = null) {
       api: 'src/lib/http/api-client.ts',
       auth: 'src/features/auth/auth-service.ts',
       session: 'src/features/auth/session.ts',
+      secure: 'src/lib/storage/secure-storage.ts',
     }[name];
     const module = { exports: {} };
     modules[name] = module;
@@ -42,10 +44,20 @@ function createHarness(adapter, storedTokens = null) {
       if (spec === 'axios' || spec === 'react') return require(spec);
       if (spec === '@/config/env') return { env: { apiUrl: 'http://test/api' } };
       if (spec === '@/lib/query/query-client') return { queryClient: { clear() {} } };
-      if (spec === '@/lib/storage/secure-storage') return {
-        getSecureJson: async (key) => JSON.parse(storage.get(key) ?? 'null'),
-        setSecureJson: async (key, value) => { storage.set(key, JSON.stringify(value)); },
-        removeSecureItem: async (key) => { storage.delete(key); },
+      if (spec === '@/lib/storage/secure-storage') return load('secure');
+      if (spec === 'expo-secure-store') return {
+        getItemAsync: async (key) => {
+          secureStoreCalls.get.push(key);
+          return storage.get(key) ?? null;
+        },
+        setItemAsync: async (key, value) => {
+          secureStoreCalls.set.push({ key, value });
+          storage.set(key, value);
+        },
+        deleteItemAsync: async (key) => {
+          secureStoreCalls.delete.push(key);
+          storage.delete(key);
+        },
       };
       if (spec === './session' || spec === '@/features/auth/session') return load('session');
       if (spec === '@/features/auth/auth-service') return load('auth');
@@ -55,7 +67,7 @@ function createHarness(adapter, storedTokens = null) {
     return module.exports;
   }
 
-  return { api: load('api').apiClient, auth: load('auth'), session: load('session'), storage };
+  return { api: load('api').apiClient, auth: load('auth'), session: load('session'), storage, secureStoreCalls };
 }
 
 test('login stores the token pair and private requests carry Bearer', async () => {
@@ -76,6 +88,11 @@ test('login stores the token pair and private requests carry Bearer', async () =
   assert.deepEqual(JSON.parse([...harness.storage.values()][0]), {
     accessToken: 'A1', refreshToken: 'R1',
   });
+  assert.deepEqual(harness.secureStoreCalls.set, [{
+    key: 'flash-pack.auth.tokens.v1',
+    value: JSON.stringify({ accessToken: 'A1', refreshToken: 'R1' }),
+  }]);
+  assert.equal(harness.secureStoreCalls.set[0].value.includes('secret'), false);
   assert.equal((await harness.api.get('/private')).data.authorization, 'Bearer A1');
 });
 
@@ -93,6 +110,7 @@ test('invalid credentials do not create a secure session', async () => {
     return true;
   });
   assert.equal(harness.storage.size, 0);
+  assert.deepEqual(harness.secureStoreCalls.set, []);
   assert.equal(harness.session.getSessionTokens(), null);
 });
 
@@ -134,6 +152,7 @@ test('a rejected refresh removes both tokens and ends the session', async () => 
   await assert.rejects(harness.api.get('/private'));
   assert.equal(harness.session.getSessionStatus(), 'unauthenticated');
   assert.equal(harness.storage.size, 0);
+  assert.deepEqual(harness.secureStoreCalls.delete, ['flash-pack.auth.tokens.v1']);
 });
 
 test('startup validates and rotates the saved token pair', async () => {
@@ -146,6 +165,7 @@ test('startup validates and rotates the saved token pair', async () => {
 
   await harness.auth.initializeSession();
   assert.equal(harness.session.getSessionStatus(), 'authenticated');
+  assert.deepEqual(harness.secureStoreCalls.get, ['flash-pack.auth.tokens.v1']);
   assert.equal(JSON.parse([...harness.storage.values()][0]).refreshToken, 'R2');
 });
 
