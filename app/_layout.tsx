@@ -9,6 +9,8 @@ import { syncService } from '@/lib/sync';
 import { LoadingView } from '@/components/ui/StateView';
 import { initializeSession } from '@/features/auth/auth-service';
 import { useSessionStatus } from '@/features/auth/session';
+import { stopTrackingAndClearLocation } from '@/features/tracking';
+import '@/features/tracking/location-task';
 
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
@@ -44,6 +46,14 @@ export default function RootLayout() {
     }
     syncService.stopSyncService();
   }, [isReady, isDbReady, sessionStatus]);
+
+  useEffect(() => {
+    if (isReady && sessionStatus === 'unauthenticated') {
+      void stopTrackingAndClearLocation().catch((error) => {
+        console.error('Error deteniendo el seguimiento GPS:', error);
+      });
+    }
+  }, [isReady, sessionStatus]);
 
   if (!isReady || sessionStatus === 'loading') {
     return (

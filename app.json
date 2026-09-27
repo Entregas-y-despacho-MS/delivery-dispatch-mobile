@@ -28,7 +28,10 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "Flash Pack necesita tu ubicación para actualizar el seguimiento de las entregas activas.",
-          "locationAlwaysAndWhenInUsePermission": "Flash Pack necesita tu ubicación en segundo plano mientras tengas una ruta activa."
+          "locationAlwaysAndWhenInUsePermission": "Flash Pack necesita tu ubicación en segundo plano mientras tengas una ruta activa.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [

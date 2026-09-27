@@ -13,7 +13,7 @@ Este repositorio es el starter kit móvil de Delivery Dispatch. Está construido
 - NativeWind v4 para estilos Tailwind en React Native.
 - TanStack Query, Axios, SecureStore y AsyncStorage como infraestructura preparada.
 
-La base intencionalmente no contiene lógica de negocio. No hay autenticación real, pedidos, estados de entrega, incidencias, GPS, pagos, datos mock ni llamadas a endpoints del dominio. Las pantallas actuales son shells y placeholders para que los módulos puedan agregarse después sin rehacer la arquitectura.
+La base contiene autenticación, persistencia local, sincronización de eventos y el servicio de ubicación de ST-77.1. Todavía no hay un módulo de despachos o rutas que conecte el ciclo de vida del GPS a estados reales. Las pantallas de entregas e incidencias siguen siendo shells y placeholders.
 
 ## 2. Regla principal para cualquier agente
 
@@ -74,6 +74,7 @@ delivery-dispatch-mobile/
 │   ├── components/ui/                # Primitivas visuales reutilizables
 │   ├── config/                       # Configuración de entorno
 │   ├── features/auth/                # Sesión, login y renovación de tokens
+│   ├── features/tracking/            # Permisos y servicio GPS en segundo plano
 │   ├── lib/                          # Infraestructura transversal
 │   ├── theme/                        # Tokens de diseño TypeScript
 │   └── types/                        # Tipos genéricos compartidos
@@ -176,6 +177,10 @@ Cliente Axios de peticiones privadas con `baseURL` y timeout. Añade el access t
 ### `features/auth/`
 
 `session.ts` guarda el par Access/Refresh Token con `expo-secure-store` y expone el estado de sesión. `auth-service.ts` usa un cliente HTTP público para login, refresh y logout. Al arrancar, intenta renovar el token persistido; un fallo de red mantiene el acceso a datos locales sin borrar credenciales.
+
+### `features/tracking/` (ST-77.1)
+
+`permissions.ts` solicita ubicación precisa y en segundo plano. `location-task.ts` registra la tarea de `expo-task-manager` a nivel de módulo para recibir puntos aun cuando no haya una pantalla montada. `tracking-service.ts` inicia el servicio con la notificación persistente de Android y lo detiene cuando `reconcileTracking` recibe cero despachos activos. La última lectura válida se guarda cifrada en SQLite. El módulo futuro de despachos deberá llamar a `reconcileTracking` al iniciar y finalizar sus despachos.
 
 ### `lib/query/query-client.ts`
 

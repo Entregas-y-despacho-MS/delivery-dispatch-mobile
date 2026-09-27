@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /**
  * Script DDL para la creación de la tabla local_events e índices de optimización.
@@ -23,6 +23,14 @@ CREATE INDEX IF NOT EXISTS idx_local_events_dispatch_id ON local_events(dispatch
 CREATE INDEX IF NOT EXISTS idx_local_events_created_at  ON local_events(created_at);
 `;
 
+const CREATE_TRACKING_LATEST_LOCATION_TABLE = `
+CREATE TABLE IF NOT EXISTS tracking_latest_location (
+  id          INTEGER PRIMARY KEY CHECK (id = 1),
+  captured_at INTEGER NOT NULL,
+  payload     TEXT    NOT NULL
+);
+`;
+
 /**
  * Ejecuta las migraciones de esquema en la base de datos SQLite según el user_version.
  */
@@ -32,6 +40,11 @@ export async function runMigrations(db: SQLiteDatabase): Promise<void> {
 
   if (currentVersion < 1) {
     await db.execAsync(CREATE_LOCAL_EVENTS_TABLE);
+    await db.execAsync('PRAGMA user_version = 1;');
+  }
+
+  if (currentVersion < 2) {
+    await db.execAsync(CREATE_TRACKING_LATEST_LOCATION_TABLE);
     await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION};`);
   }
 }
