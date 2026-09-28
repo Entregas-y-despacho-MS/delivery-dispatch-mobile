@@ -10,6 +10,7 @@ import { LoadingView } from '@/components/ui/StateView';
 import { initializeSession } from '@/features/auth/auth-service';
 import { useSessionStatus } from '@/features/auth/session';
 import { stopTrackingAndClearLocation } from '@/features/tracking';
+import { trackingUploadService } from '@/features/tracking/tracking-upload-service';
 import '@/features/tracking/location-task';
 
 export default function RootLayout() {
@@ -39,11 +40,16 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (isReady && isDbReady && sessionStatus === 'authenticated') {
+      trackingUploadService.start();
       void syncService.startSyncService().catch((error) => {
         console.error('Error iniciando la sincronización:', error);
       });
-      return () => syncService.stopSyncService();
+      return () => {
+        trackingUploadService.stop();
+        syncService.stopSyncService();
+      };
     }
+    trackingUploadService.stop();
     syncService.stopSyncService();
   }, [isReady, isDbReady, sessionStatus]);
 

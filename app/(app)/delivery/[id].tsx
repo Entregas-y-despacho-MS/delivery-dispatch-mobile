@@ -1,7 +1,14 @@
-import { useLocalSearchParams } from 'expo-router';
-import { AppText, EmptyView, Screen } from '@/components/ui';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { AppText, Card, Screen } from '@/components/ui';
+import TrackingScreen from '@/features/tracking/TrackingScreen';
 
-export default function DetailShellScreen() {
+export default function DeliveryTrackingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  return <Screen><AppText variant="title">Detalle</AppText><AppText variant="caption">Ruta dinámica configurada: {id}</AppText><EmptyView title="Pantalla base" description="Este route está preparado para recibir su módulo, sin lógica de negocio incluida." /></Screen>;
+  const dispatchId = typeof id === 'string' && /^[1-9]\d*$/.test(id) ? Number(id) : NaN;
+  if (!Number.isSafeInteger(dispatchId)) {
+    return <Screen><Card><AppText variant="heading">Despacho inválido</AppText>
+      <AppText>Abre esta pantalla con el ID de un despacho válido.</AppText></Card></Screen>;
+  }
+  return <><Stack.Screen options={{ headerShown: true, title: `Despacho ${dispatchId}` }} />
+    <TrackingScreen dispatchId={dispatchId} /></>;
 }
