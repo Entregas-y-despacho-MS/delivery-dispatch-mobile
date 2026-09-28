@@ -4,6 +4,7 @@ import * as TaskManager from 'expo-task-manager';
 import { ANDROID_MIN_INTERVAL_MS, LOCATION_TASK_NAME, MIN_DISTANCE_METERS } from './config';
 import { requestTrackingPermissions } from './permissions';
 import { clearLatestLocation } from './latest-location.repository';
+import { clearTrackingTelemetry } from './location-buffer.repository';
 import type { TrackingPermissionResult } from './types';
 
 export type TrackingResult = TrackingPermissionResult | { status: 'tracking' | 'stopped' };
@@ -76,5 +77,6 @@ export function stopTrackingAndClearLocation(): Promise<void> {
   return serialize(async () => {
     await stopLocationTask();
     await clearLatestLocation();
+    await clearTrackingTelemetry();
   });
 }

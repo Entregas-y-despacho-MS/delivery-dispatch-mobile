@@ -178,9 +178,9 @@ Cliente Axios de peticiones privadas con `baseURL` y timeout. Añade el access t
 
 `session.ts` guarda el par Access/Refresh Token con `expo-secure-store` y expone el estado de sesión. `auth-service.ts` usa un cliente HTTP público para login, refresh y logout. Al arrancar, intenta renovar el token persistido; un fallo de red mantiene el acceso a datos locales sin borrar credenciales.
 
-### `features/tracking/` (ST-77.1)
+### `features/tracking/` (ST-77.1 y ST-77.2)
 
-`permissions.ts` solicita ubicación precisa y en segundo plano. `location-task.ts` registra la tarea de `expo-task-manager` a nivel de módulo para recibir puntos aun cuando no haya una pantalla montada. `tracking-service.ts` inicia el servicio con la notificación persistente de Android y lo detiene cuando `reconcileTracking` recibe cero despachos activos. La última lectura válida se guarda cifrada en SQLite. El módulo futuro de despachos deberá llamar a `reconcileTracking` al iniciar y finalizar sus despachos.
+`permissions.ts` solicita ubicación precisa y en segundo plano. `location-task.ts` registra la tarea de `expo-task-manager` a nivel de módulo para recibir puntos aun cuando no haya una pantalla montada. `tracking-service.ts` inicia el servicio con la notificación persistente de Android y lo detiene cuando `reconcileTracking` recibe cero despachos activos. `dispatch-tracking.ts` expone `syncDispatchTracking(dispatchId | null)` como frontera para el futuro módulo de despachos: asocia el ID antes de iniciar, serializa los cambios y detiene el GPS al recibir `null`. La última lectura válida se guarda cifrada en SQLite. `adaptive-sampling.ts` elige los puntos emitidos según velocidad y `location-buffer.repository.ts` conserva hasta 100 puntos cifrados con estado de muestreo persistente. La migración SQLite v4 guarda las horas del último punto y del último intento HTTP para diagnóstico. La ruta `delivery/[id]` usa el ID recibido; `location-upload.ts` envía lotes al endpoint de telemetría y `tracking-upload-service.ts` los reintenta al recuperar la red o reanudar la app. Falta conectar la navegación y la finalización automáticas al futuro módulo de asignación de despachos.
 
 ### `lib/query/query-client.ts`
 
@@ -199,7 +199,7 @@ Wrapper genérico para valores persistentes no sensibles. No guardes tokens aqu�
 Motor de persistencia local embebido en SQLite (`expo-sqlite`) para almacenamiento de eventos fuera de línea (RF-U13):
 
 - `connection.ts`: Conexión asíncrona singleton configurada en modo `WAL` (`PRAGMA journal_mode = WAL;`) para operaciones sin bloqueo de la UI.
-- `schema.ts`: DDL de la tabla `local_events` (id, dispatch_id, event_type, payload, created_at, sync_status, synced_at, attempts, last_error) e índices de consulta.
+- `schema.ts`: migraciones de `local_events`, última lectura GPS, estado de muestreo y buffer de telemetría.
 - `crypto.ts`: Cifrado y descifrado AES-256-CBC para el campo `payload` con clave de 256 bits resguardada en `SecureStore`.
 - `uuid.ts`: Generador de UUID v7 conforme a RFC 9562 para PKs de incidencias y evidencias consistentes con PostgreSQL.
 - `repositories/local-event.repository.ts`: Métodos transaccionales para inserción atómica de estados (`RF-U04`), incidencias (`RF-U06`) y evidencias (`RF-U05`), y lectura FIFO (`getPendingEvents`).
