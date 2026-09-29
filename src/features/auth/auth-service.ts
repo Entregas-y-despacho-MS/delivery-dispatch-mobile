@@ -113,8 +113,11 @@ export async function signOut() {
     if (accessToken) {
       await authClient.post('/auth/logout', undefined, {
         headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 3000,
       });
     }
+  } catch {
+    // Falla de red o timeout no deben impedir la purga local de la sesión
   } finally {
     await expireSession();
   }
