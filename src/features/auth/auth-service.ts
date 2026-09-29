@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { env } from '@/config/env';
 import { queryClient } from '@/lib/query/query-client';
+import { clearTrackingTelemetry } from '@/features/tracking';
 import {
   clearSessionTokens,
   finishSessionRestore,
@@ -37,13 +38,31 @@ function readAuthResponse(value: unknown): AuthResponse {
   return response as AuthResponse;
 }
 
+let lastAuthenticatedAccount: string | null = null;
+
+export function getLastAuthenticatedAccount(): string | null {
+  return lastAuthenticatedAccount;
+}
+
+export function setLastAuthenticatedAccount(account: string | null): void {
+  lastAuthenticatedAccount = account;
+}
+
 export async function signIn(username: string, password: string, totpCode?: string) {
+  const normalizedUsername = username.trim().toLowerCase();
   const { data } = await authClient.post<unknown>('/auth/login', {
     username: username.trim(),
     password,
     ...(totpCode ? { totpCode } : {}),
   });
   const response = readAuthResponse(data);
+
+  // Evitar que otra cuenta transmita los puntos GPS del conductor anterior
+  if (lastAuthenticatedAccount && lastAuthenticatedAccount !== normalizedUsername) {
+    await clearTrackingTelemetry();
+  }
+  lastAuthenticatedAccount = normalizedUsername;
+
   await saveSessionTokens({ accessToken: response.accessToken, refreshToken: response.refreshToken }, true);
 }
 

@@ -39,7 +39,11 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (isReady && isDbReady && sessionStatus === 'authenticated') {
+    if (!isReady || !isDbReady || sessionStatus === 'loading') {
+      return;
+    }
+
+    if (sessionStatus === 'authenticated') {
       trackingUploadService.start();
       void syncService.startSyncService().catch((error) => {
         console.error('Error iniciando la sincronización:', error);
@@ -48,7 +52,10 @@ export default function RootLayout() {
         void teardownBackgroundServices();
       };
     }
-    void teardownBackgroundServices();
+
+    if (sessionStatus === 'unauthenticated') {
+      void teardownBackgroundServices();
+    }
   }, [isReady, isDbReady, sessionStatus]);
 
   if (!isReady || sessionStatus === 'loading') {

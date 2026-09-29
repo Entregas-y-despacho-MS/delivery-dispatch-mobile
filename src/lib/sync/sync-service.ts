@@ -45,10 +45,14 @@ export class SyncService {
       return; // Ya iniciado
     }
 
-    this.activeSessionId++;
+    const sessionId = ++this.activeSessionId;
 
     // 1. Estado inicial de red
-    this.isOnlineState = await isOnline();
+    const online = await isOnline();
+    if (sessionId !== this.activeSessionId) {
+      return; // Si stopSyncService fue llamado durante el await, abortar inmediatamente
+    }
+    this.isOnlineState = online;
     this.notifyListeners();
 
     // 2. Escucha reactiva de transiciones online/offline

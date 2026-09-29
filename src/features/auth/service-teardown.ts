@@ -1,5 +1,5 @@
 import { trackingUploadService } from '@/features/tracking/tracking-upload-service';
-import { stopTrackingAndClearLocation } from '@/features/tracking';
+import { stopTracking } from '@/features/tracking';
 import { syncService } from '@/lib/sync';
 
 /**
@@ -7,7 +7,7 @@ import { syncService } from '@/lib/sync';
  *
  * Detiene en orden determinista:
  * 1. TrackingUploadService (NetInfo + AppState + timer de 60s)
- * 2. Foreground Service GPS (expo-location + TaskManager + buffers de telemetría)
+ * 2. Foreground Service GPS (expo-location + TaskManager) sin borrar la telemetría pendiente en SQLite
  * 3. SyncService FIFO (NetInfo + retry timeout + periodic interval + reseteo de estado en memoria)
  *
  * Emplea Promise.allSettled para garantizar que la eventual falla o rechazo
@@ -17,10 +17,10 @@ export async function teardownBackgroundServices(): Promise<void> {
   // 1. Detener listeners y timer del uploader de telemetría de forma inmediata
   trackingUploadService.stop();
 
-  // 2. Detener GPS foreground service + limpiar buffers de telemetría
+  // 2. Detener GPS foreground service sin borrar la telemetría pendiente en SQLite
   // y detener sincronizador FIFO (sus timers, listeners NetInfo y estado en memoria)
   await Promise.allSettled([
-    stopTrackingAndClearLocation(),
+    stopTracking(),
     syncService.stopSyncService(),
   ]);
 }

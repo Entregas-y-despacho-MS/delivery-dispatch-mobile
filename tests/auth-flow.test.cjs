@@ -61,6 +61,7 @@ function createHarness(adapter, storedTokens = null) {
       };
       if (spec === './session' || spec === '@/features/auth/session') return load('session');
       if (spec === '@/features/auth/auth-service') return load('auth');
+      if (spec === '@/features/tracking') return { clearTrackingTelemetry: async () => {} };
       throw new Error(`Unexpected dependency: ${spec}`);
     };
     new Function('require', 'module', 'exports', compiled)(loadDependency, module, module.exports);
