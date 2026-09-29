@@ -41,7 +41,8 @@ CREATE TABLE IF NOT EXISTS tracking_sampling_state (
 
 CREATE TABLE IF NOT EXISTS tracking_context (
   id          INTEGER PRIMARY KEY CHECK (id = 1),
-  dispatch_id INTEGER CHECK (dispatch_id > 0)
+  dispatch_id INTEGER CHECK (dispatch_id > 0),
+  account     TEXT
 );
 
 CREATE TABLE IF NOT EXISTS tracking_location_buffer (

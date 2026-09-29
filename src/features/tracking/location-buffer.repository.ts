@@ -84,6 +84,40 @@ export async function getTrackingDispatchId(): Promise<number | null> {
   return row?.dispatch_id ?? null;
 }
 
+export async function setTrackingAccount(account: string | null): Promise<void> {
+  await initDatabase();
+  try {
+    await getDatabase().runAsync(
+      `INSERT INTO tracking_context (id, account) VALUES (1, ?)
+       ON CONFLICT(id) DO UPDATE SET account = excluded.account;`,
+      [account]
+    );
+  } catch {
+    try {
+      await getDatabase().execAsync('ALTER TABLE tracking_context ADD COLUMN account TEXT;');
+      await getDatabase().runAsync(
+        `INSERT INTO tracking_context (id, account) VALUES (1, ?)
+         ON CONFLICT(id) DO UPDATE SET account = excluded.account;`,
+        [account]
+      );
+    } catch {
+      // Ignorar error si la columna ya existía
+    }
+  }
+}
+
+export async function getTrackingAccount(): Promise<string | null> {
+  await initDatabase();
+  try {
+    const row = await getDatabase().getFirstAsync<{ account: string | null }>(
+      'SELECT account FROM tracking_context WHERE id = 1;'
+    );
+    return row?.account ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Procesa cada lectura en orden y guarda en una sola transacción los puntos emitidos y el estado. */
 export async function bufferTrackingPoints(points: TrackingPoint[]): Promise<number> {
   if (points.length === 0) return 0;

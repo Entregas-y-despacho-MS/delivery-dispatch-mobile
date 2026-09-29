@@ -9,7 +9,7 @@ import { syncService } from '@/lib/sync';
 import { LoadingView } from '@/components/ui/StateView';
 import { initializeSession } from '@/features/auth/auth-service';
 import { useSessionStatus } from '@/features/auth/session';
-import { stopTrackingAndClearLocation } from '@/features/tracking';
+import { teardownBackgroundServices } from '@/features/auth/service-teardown';
 import { trackingUploadService } from '@/features/tracking/tracking-upload-service';
 import '@/features/tracking/location-task';
 
@@ -39,27 +39,24 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (isReady && isDbReady && sessionStatus === 'authenticated') {
+    if (!isReady || !isDbReady || sessionStatus === 'loading') {
+      return;
+    }
+
+    if (sessionStatus === 'authenticated') {
       trackingUploadService.start();
       void syncService.startSyncService().catch((error) => {
         console.error('Error iniciando la sincronización:', error);
       });
       return () => {
-        trackingUploadService.stop();
-        syncService.stopSyncService();
+        void teardownBackgroundServices();
       };
     }
-    trackingUploadService.stop();
-    syncService.stopSyncService();
-  }, [isReady, isDbReady, sessionStatus]);
 
-  useEffect(() => {
-    if (isReady && sessionStatus === 'unauthenticated') {
-      void stopTrackingAndClearLocation().catch((error) => {
-        console.error('Error deteniendo el seguimiento GPS:', error);
-      });
+    if (sessionStatus === 'unauthenticated') {
+      void teardownBackgroundServices();
     }
-  }, [isReady, sessionStatus]);
+  }, [isReady, isDbReady, sessionStatus]);
 
   if (!isReady || sessionStatus === 'loading') {
     return (

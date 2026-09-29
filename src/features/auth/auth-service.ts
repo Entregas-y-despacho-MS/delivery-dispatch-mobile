@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { env } from '@/config/env';
 import { queryClient } from '@/lib/query/query-client';
+import { clearTrackingTelemetry, getTrackingAccount, setTrackingAccount } from '@/features/tracking';
 import {
   clearSessionTokens,
   finishSessionRestore,
@@ -38,12 +39,21 @@ function readAuthResponse(value: unknown): AuthResponse {
 }
 
 export async function signIn(username: string, password: string, totpCode?: string) {
+  const normalizedUsername = username.trim().toLowerCase();
   const { data } = await authClient.post<unknown>('/auth/login', {
     username: username.trim(),
     password,
     ...(totpCode ? { totpCode } : {}),
   });
   const response = readAuthResponse(data);
+
+  // Evitar que otra cuenta transmita los puntos GPS del conductor anterior (persistido en SQLite)
+  const previousAccount = await getTrackingAccount();
+  if (previousAccount && previousAccount !== normalizedUsername) {
+    await clearTrackingTelemetry();
+  }
+  await setTrackingAccount(normalizedUsername);
+
   await saveSessionTokens({ accessToken: response.accessToken, refreshToken: response.refreshToken }, true);
 }
 

@@ -28,6 +28,7 @@ export class SyncService {
   private periodicInterval: ReturnType<typeof setInterval> | null = null;
   private listeners: Set<SyncStateListener> = new Set();
   private dispatcher: EventDispatcher;
+  private activeSessionId = 0;
 
   constructor(dispatcher: EventDispatcher = eventDispatcher) {
     this.dispatcher = dispatcher;
@@ -44,8 +45,14 @@ export class SyncService {
       return; // Ya iniciado
     }
 
+    const sessionId = ++this.activeSessionId;
+
     // 1. Estado inicial de red
-    this.isOnlineState = await isOnline();
+    const online = await isOnline();
+    if (sessionId !== this.activeSessionId) {
+      return; // Si stopSyncService fue llamado durante el await, abortar inmediatamente
+    }
+    this.isOnlineState = online;
     this.notifyListeners();
 
     // 2. Escucha reactiva de transiciones online/offline
@@ -74,9 +81,11 @@ export class SyncService {
   }
 
   /**
-   * Detiene el servicio y limpia todos los listeners y temporizadores.
+   * Detiene el servicio y limpia todos los listeners, temporizadores y estado de sesión en memoria.
    */
   stopSyncService(): void {
+    this.activeSessionId++;
+
     if (this.unsubscribeNetInfo) {
       this.unsubscribeNetInfo();
       this.unsubscribeNetInfo = null;
@@ -93,7 +102,17 @@ export class SyncService {
     }
 
     this.isSyncing = false;
-    this.notifyListeners();
+    this.lastSyncAt = null;
+    this.lastError = null;
+    this.isOnlineState = true;
+    this.listeners.clear();
+  }
+
+  /**
+   * Indica si el servicio de sincronización en segundo plano se encuentra activo con observadores o timers.
+   */
+  isServiceRunning(): boolean {
+    return this.unsubscribeNetInfo !== null || this.periodicInterval !== null || this.retryTimeout !== null;
   }
 
   /**
@@ -112,12 +131,14 @@ export class SyncService {
    * respetando dependencias de estado por despacho y aplicando backoff exponencial.
    */
   async processQueue(): Promise<void> {
+    const sessionId = this.activeSessionId;
     if (this.isSyncing) {
       return;
     }
 
     // Verificar conectividad antes de intentar
     const online = await isOnline();
+    if (sessionId !== this.activeSessionId) return;
     this.isOnlineState = online;
 
     if (!online) {
@@ -131,10 +152,13 @@ export class SyncService {
     try {
       // 1. Obtener eventos pendientes en orden FIFO (created_at ASC)
       const pendingEvents = await localEventRepository.getPendingEvents();
+      if (sessionId !== this.activeSessionId) return;
 
       if (pendingEvents.length === 0) {
-        this.lastSyncAt = new Date();
-        this.lastError = null;
+        if (sessionId === this.activeSessionId) {
+          this.lastSyncAt = new Date();
+          this.lastError = null;
+        }
         return;
       }
 
@@ -143,6 +167,8 @@ export class SyncService {
       const blockedDispatches = new Set<number>();
 
       for (const event of pendingEvents) {
+        if (sessionId !== this.activeSessionId) return;
+
         // Si un evento anterior de este mismo despacho falló, no procesar posteriores
         if (blockedDispatches.has(event.dispatchId)) {
           continue;
@@ -151,11 +177,14 @@ export class SyncService {
         try {
           // Despacho HTTP del evento
           await this.dispatcher.dispatch(event);
+          if (sessionId !== this.activeSessionId) return;
 
           // Éxito: marcar como sincronizado
           await localEventRepository.markAsSynced(event.id);
           this.lastError = null;
         } catch (error) {
+          if (sessionId !== this.activeSessionId) return;
+
           const errorMsg = extractErrorMessage(error);
           const retryable = isRetryableError(error);
 
@@ -175,13 +204,20 @@ export class SyncService {
       }
 
       // 2. Purgar eventos antiguos ya sincronizados (> 7 días)
+      if (sessionId !== this.activeSessionId) return;
       await localEventRepository.purgeSyncedEvents(7);
-      this.lastSyncAt = new Date();
+      if (sessionId === this.activeSessionId) {
+        this.lastSyncAt = new Date();
+      }
     } catch (unexpectedError) {
-      this.lastError = extractErrorMessage(unexpectedError);
+      if (sessionId === this.activeSessionId) {
+        this.lastError = extractErrorMessage(unexpectedError);
+      }
     } finally {
-      this.isSyncing = false;
-      this.notifyListeners();
+      if (sessionId === this.activeSessionId) {
+        this.isSyncing = false;
+        this.notifyListeners();
+      }
     }
   }
 

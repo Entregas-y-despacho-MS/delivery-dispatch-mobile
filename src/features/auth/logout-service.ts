@@ -1,7 +1,6 @@
 import { localEventRepository } from '@/lib/database';
-import { syncService } from '@/lib/sync';
-import { stopTrackingAndClearLocation } from '@/features/tracking';
 import { signOut } from './auth-service';
+import { teardownBackgroundServices } from './service-teardown';
 
 export interface PendingSyncInfo {
   pendingCount: number;
@@ -27,13 +26,10 @@ export async function getPendingSyncInfo(): Promise<PendingSyncInfo> {
 /**
  * Ejecuta el cierre de turno completo:
  * 1. Invoca signOut() (POST /auth/logout con timeout 3s y purga de SecureStore).
- * 2. Detiene el Foreground Service GPS y limpia telemetría en memoria (Escenario 2).
- * 3. Detiene el servicio de sincronización en segundo plano.
+ * 2. Detiene todos los servicios nativos en segundo plano (Foreground Service GPS,
+ *    TrackingUploadService y SyncService FIFO) mediante el protocolo de teardown ST-34.2.
  */
 export async function executeLogout(): Promise<void> {
   await signOut();
-  await Promise.allSettled([
-    stopTrackingAndClearLocation(),
-    syncService.stopSyncService(),
-  ]);
+  await teardownBackgroundServices();
 }
