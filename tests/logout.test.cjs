@@ -12,10 +12,11 @@ function ok(config, data = null) {
 function createLogoutHarness(adapter, storedTokens = null, repoOverrides = {}) {
   const storage = new Map();
   const secureStoreCalls = { get: [], set: [], delete: [] };
-  const trackingCalls = { stopped: false, cleared: false };
+  const trackingCalls = { stopped: false, cleared: false, latestCleared: false, dispatchId: undefined };
   const trackingUploadCalls = { stopped: false };
   const syncCalls = { stopped: false };
   const syncNetInfo = { unsubscribed: false, listener: null };
+  const trackingContext = repoOverrides.trackingContext || { account: null, dispatchId: null };
 
   if (storedTokens) {
     storage.set('flash-pack.auth.tokens.v1', JSON.stringify(storedTokens));
@@ -87,8 +88,12 @@ function createLogoutHarness(adapter, storedTokens = null, repoOverrides = {}) {
       };
       if (spec === '@/features/tracking') return {
         stopTracking: async () => { trackingCalls.stopped = true; },
+        clearLatestLocation: async () => { trackingCalls.latestCleared = true; },
+        setTrackingDispatchId: async (id) => { trackingCalls.dispatchId = id; trackingContext.dispatchId = id; },
         stopTrackingAndClearLocation: async () => { trackingCalls.stopped = true; trackingCalls.cleared = true; },
-        clearTrackingTelemetry: async () => { trackingCalls.cleared = true; },
+        clearTrackingTelemetry: async () => { trackingCalls.cleared = true; repoOverrides.clearedTelemetry = true; },
+        getTrackingAccount: async () => trackingContext.account,
+        setTrackingAccount: async (acc) => { trackingContext.account = acc; },
       };
       // Dependencias requeridas por sync-service.ts
       if (spec === './network') return {
@@ -126,6 +131,7 @@ function createLogoutHarness(adapter, storedTokens = null, repoOverrides = {}) {
     trackingUploadCalls,
     syncCalls,
     syncNetInfo,
+    trackingContext,
     repo: repoMock,
   };
 }
@@ -236,13 +242,15 @@ test('ST-34.2: teardownBackgroundServices detiene el trackingUploadService (NetI
   assert.equal(harness.trackingUploadCalls.stopped, true, 'trackingUploadService.stop() debió ser invocado');
 });
 
-test('ST-34.2: teardownBackgroundServices detiene el Foreground Service GPS sin borrar la telemetría pendiente en SQLite', async () => {
+test('ST-34.2: teardownBackgroundServices detiene GPS, limpia última ubicación y desvincula despacho activo sin borrar telemetría de SQLite', async () => {
   const harness = createLogoutHarness(async () => ok({}));
 
   await harness.teardown.teardownBackgroundServices();
 
   assert.equal(harness.trackingCalls.stopped, true, 'stopTracking() debió ser invocado');
-  assert.equal(harness.trackingCalls.cleared, false, 'No debe invocar clearTrackingTelemetry ni borrar el buffer');
+  assert.equal(harness.trackingCalls.latestCleared, true, 'clearLatestLocation() debió ser invocado');
+  assert.equal(harness.trackingCalls.dispatchId, null, 'setTrackingDispatchId(null) debió desvincular el despacho activo');
+  assert.equal(harness.trackingCalls.cleared, false, 'No debe borrar la tabla tracking_location_buffer de SQLite');
 });
 
 test('ST-34.2: teardownBackgroundServices cancela NetInfo, retryTimeout y periodicInterval del SyncService', async () => {
@@ -326,6 +334,8 @@ test('ST-34.2: executeLogout completo no deja procesos huérfanos ni listeners a
 
   // 1. Foreground Service GPS detenido
   assert.equal(harness.trackingCalls.stopped, true, 'GPS tracking debe estar detenido');
+  assert.equal(harness.trackingCalls.latestCleared, true, 'Última ubicación en memoria debe limpiarse');
+  assert.equal(harness.trackingCalls.dispatchId, null, 'Asociación al despacho activo debe ser null');
 
   // 2. Tracking upload service (NetInfo + AppState + timer 60s) detenido
   assert.equal(harness.trackingUploadCalls.stopped, true, 'Tracking upload service debe estar detenido');
@@ -339,42 +349,46 @@ test('ST-34.2: executeLogout completo no deja procesos huérfanos ni listeners a
   assert.ok(harness.secureStoreCalls.delete.includes('flash-pack.auth.tokens.v1'), 'Tokens en hardware seguro deben estar eliminados');
 });
 
-test('ST-34.2: executeLogout conserva puntos GPS pendientes en SQLite tras reabrir app y evita que otra cuenta los envíe', async () => {
-  const bufferedPoints = [
-    { id: 1, dispatchId: 101, latitude: -16.5, longitude: -68.15 },
-    { id: 2, dispatchId: 101, latitude: -16.51, longitude: -68.16 },
-  ];
-  const sqliteBuffer = [...bufferedPoints];
+test('ST-34.2: persistencia duradera en SQLite conserva puntos GPS tras reinicio y limpia si entra otra cuenta', async () => {
+  const sharedDbState = {
+    trackingContext: { account: 'juan', dispatchId: null },
+    clearedTelemetry: false,
+  };
 
-  const harness = createLogoutHarness(async (config) => {
+  const loginAdapter = async (config) => {
     if (config.url === '/auth/login') {
-      return { config, data: { accessToken: 'NEW_TOKEN', refreshToken: 'NEW_REFRESH', mustChangePassword: false }, status: 200 };
+      return { config, data: { accessToken: 'NEW_TOK', refreshToken: 'NEW_REF', mustChangePassword: false }, status: 200 };
     }
     if (config.url === '/auth/logout') return ok(config);
     throw new Error(`Unexpected URL: ${config.url}`);
-  }, { accessToken: 'JUAN_TOKEN', refreshToken: 'JUAN_REFRESH' });
+  };
 
-  // 1. Conductor Juan tiene sesión activa y puntos pendientes en SQLite
-  harness.auth.setLastAuthenticatedAccount('juan');
-  await harness.session.restoreSessionTokens();
-  harness.session.finishSessionRestore();
-  assert.equal(harness.session.getSessionStatus(), 'authenticated');
+  // 1. Conductor Juan tenía sesión previa y la cuenta 'juan' quedó almacenada en SQLite tracking_context
+  const harness1 = createLogoutHarness(loginAdapter, { accessToken: 'JUAN_TOK', refreshToken: 'JUAN_REF' }, sharedDbState);
+  await harness1.session.restoreSessionTokens();
+  harness1.session.finishSessionRestore();
 
-  // 2. Juan cierra turno / logout
-  await harness.logout.executeLogout();
-  assert.equal(harness.session.getSessionStatus(), 'unauthenticated');
-  assert.equal(harness.trackingCalls.stopped, true, 'GPS tracking debe haberse detenido');
-  assert.equal(harness.trackingCalls.cleared, false, 'Teardown NO debe haber borrado el buffer de SQLite');
-  assert.equal(sqliteBuffer.length, 2, 'Los puntos GPS deben permanecer en SQLite tras el logout');
+  // Juan cierra sesión: el GPS se apaga, se desvincula el despacho activo, pero la cuenta 'juan' sigue persistida en SQLite
+  await harness1.logout.executeLogout();
+  assert.equal(harness1.trackingCalls.stopped, true);
+  assert.equal(harness1.trackingCalls.latestCleared, true);
+  assert.equal(harness1.trackingCalls.dispatchId, null);
+  assert.equal(sharedDbState.clearedTelemetry, false, 'No debe borrar las coordenadas acumuladas en SQLite al cerrar sesión');
 
-  // 3. Simular reapertura de la app con la misma cuenta de Juan (no se debe borrar la telemetría)
-  await harness.auth.signIn('juan', 'password123');
-  assert.equal(harness.trackingCalls.cleared, false, 'La misma cuenta conserva los puntos GPS pendientes');
-  assert.equal(sqliteBuffer.length, 2, 'Al reabrir la app con la misma cuenta, los puntos siguen disponibles');
+  // 2. SIMULAR REINICIO COMPLETO DE LA APP (matar proceso e instanciar nuevos módulos de JS)
+  // Al reabrir la app de cero con la misma cuenta de Juan:
+  const harnessFreshJuan = createLogoutHarness(loginAdapter, null, sharedDbState);
+  await harnessFreshJuan.auth.signIn('juan', 'password123');
 
-  // 4. Conductor Pedro (otra cuenta distinta) inicia sesión en el mismo teléfono
-  await harness.auth.signIn('pedro', 'password123');
-  assert.equal(harness.trackingCalls.cleared, true, 'Debe limpiar la telemetría previa para evitar que otra cuenta envíe puntos del conductor anterior');
+  assert.equal(sharedDbState.trackingContext.account, 'juan', 'SQLite mantiene a juan como la cuenta persistida');
+  assert.equal(sharedDbState.clearedTelemetry, false, 'La misma cuenta Juan no borra el buffer de telemetría de SQLite tras el reinicio');
+
+  // 3. SIMULAR REINICIO COMPLETO DE LA APP e inicio de sesión de OTRO conductor (Pedro)
+  const harnessFreshPedro = createLogoutHarness(loginAdapter, null, sharedDbState);
+  await harnessFreshPedro.auth.signIn('pedro', 'password123');
+
+  assert.equal(sharedDbState.clearedTelemetry, true, 'Al ingresar Pedro (otra cuenta), detecta el cambio en SQLite y purga la telemetría previa de Juan');
+  assert.equal(sharedDbState.trackingContext.account, 'pedro', 'Actualiza la cuenta activa en SQLite a pedro');
 });
 
 test('ST-34.2: startSyncService aborta si se llama a stopSyncService() durante await isOnline()', async () => {
