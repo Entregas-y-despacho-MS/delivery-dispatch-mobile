@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
+  BackHandler,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -97,7 +98,7 @@ export default function ChangePasswordScreen() {
   const watchedNewPassword = useWatch({ control, name: 'newPassword' }) ?? '';
   const requirements = checkPasswordRequirements(watchedNewPassword);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     Alert.alert(
       'Cancelar cambio de contraseña',
       'Si sales ahora, deberás iniciar sesión nuevamente con tu contraseña temporal. ¿Deseas salir?',
@@ -106,11 +107,28 @@ export default function ChangePasswordScreen() {
         {
           text: 'Salir al inicio',
           style: 'destructive',
-          onPress: () => router.replace('/(auth)/login'),
+          onPress: () => {
+            clearPendingPasswordChange();
+            router.replace('/(auth)/login');
+          },
         },
       ],
     );
-  };
+  }, []);
+
+  useEffect(() => {
+    const onBackPress = () => {
+      handleCancel();
+      return true;
+    };
+
+    const backHandlerSubscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      onBackPress,
+    );
+
+    return () => backHandlerSubscription.remove();
+  }, [handleCancel]);
 
   const submit = handleSubmit(async ({ newPassword }) => {
     const pending = getPendingPasswordChange();
@@ -137,14 +155,7 @@ export default function ChangePasswordScreen() {
 
     try {
       await executeChangePassword(token, effectiveCurrentPassword, newPassword);
-
-      // Limpiar el estado de cambio pendiente
       clearPendingPasswordChange();
-
-      // Re-autenticación automática con la nueva contraseña
-      await signIn(username, newPassword);
-
-      router.replace('/(app)/(tabs)');
     } catch (error) {
       const failure = getChangePasswordFailure(error);
       if (failure.kind === 'session-expired') {
@@ -155,6 +166,25 @@ export default function ChangePasswordScreen() {
         return;
       }
       Alert.alert(failure.title, failure.message);
+      return;
+    }
+
+    try {
+      // Re-autenticación automática con la nueva contraseña
+      await signIn(username, newPassword);
+      router.replace('/(app)/(tabs)');
+    } catch {
+      // Si la re-autenticación inmediata falla por red/timeout, la clave ya fue cambiada exitosamente en el servidor
+      Alert.alert(
+        'Contraseña actualizada',
+        'Tu contraseña ha sido actualizada exitosamente. Por favor, inicia sesión con tu nueva contraseña.',
+        [
+          {
+            text: 'Iniciar sesión',
+            onPress: () => router.replace('/(auth)/login'),
+          },
+        ],
+      );
     }
   });
 
