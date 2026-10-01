@@ -60,7 +60,8 @@ delivery-dispatch-mobile/
 │   ├── index.tsx                     # Entrada inicial de la aplicación
 │   ├── (auth)/                       # Grupo visual de autenticación
 │   │   ├── _layout.tsx               # Stack de autenticación
-│   │   └── login.tsx                 # Login conectado al backend
+│   │   ├── login.tsx                 # Login conectado al backend
+│   │   └── change-password.tsx       # Cambio obligatorio de contraseña (RF-A25, RF-A23)
 │   └── (app)/                        # Shell principal de la aplicación
 │       ├── _layout.tsx               # Stack principal
 │       ├── (tabs)/                   # Navegación principal por tabs
@@ -108,7 +109,8 @@ Es la entrada de la app. Redirige al login o a las pestañas según la sesión r
 Contiene el flujo de acceso.
 
 - `_layout.tsx`: configura el Stack del grupo y redirige a la app si ya existe sesión.
-- `login.tsx`: valida campos, llama a `POST /auth/login` y muestra errores de credenciales y código TOTP.
+- `login.tsx`: valida campos, llama a `POST /auth/login`, maneja código TOTP y redirige a `change-password` si el usuario requiere cambio obligatorio (`mustChangePassword: true`).
+- `change-password.tsx`: formulario con validación reactiva de los 5 requisitos de complejidad (RF-A25), llama a `PATCH /auth/change-password` y re-autentica automáticamente al usuario.
 
 ### `app/(app)/`
 

@@ -12,6 +12,31 @@ import {
   type SessionTokens,
 } from './session';
 
+export interface PendingPasswordChangeState {
+  username: string;
+  accessToken: string;
+  currentPassword?: string;
+}
+
+export interface SignInResult {
+  mustChangePassword: boolean;
+  accessToken: string;
+}
+
+let pendingPasswordChange: PendingPasswordChangeState | null = null;
+
+export function getPendingPasswordChange(): PendingPasswordChangeState | null {
+  return pendingPasswordChange;
+}
+
+export function setPendingPasswordChange(state: PendingPasswordChangeState | null) {
+  pendingPasswordChange = state;
+}
+
+export function clearPendingPasswordChange() {
+  pendingPasswordChange = null;
+}
+
 interface AuthResponse extends SessionTokens {
   mustChangePassword: boolean;
 }
@@ -32,13 +57,14 @@ function readAuthResponse(value: unknown): AuthResponse {
     || typeof response.accessToken !== 'string' || typeof response.refreshToken !== 'string') {
     throw new Error('El servidor no devolvió los tokens de sesión.');
   }
-  if (response.mustChangePassword !== false) {
-    throw new Error('Tu contraseña debe cambiarse antes de continuar. Esta opción aún no está disponible en la app.');
-  }
-  return response as AuthResponse;
+  return {
+    accessToken: response.accessToken,
+    refreshToken: response.refreshToken,
+    mustChangePassword: response.mustChangePassword === true,
+  };
 }
 
-export async function signIn(username: string, password: string, totpCode?: string) {
+export async function signIn(username: string, password: string, totpCode?: string): Promise<SignInResult> {
   const normalizedUsername = username.trim().toLowerCase();
   const { data } = await authClient.post<unknown>('/auth/login', {
     username: username.trim(),
@@ -46,6 +72,17 @@ export async function signIn(username: string, password: string, totpCode?: stri
     ...(totpCode ? { totpCode } : {}),
   });
   const response = readAuthResponse(data);
+
+  if (response.mustChangePassword) {
+    setPendingPasswordChange({
+      username: normalizedUsername,
+      accessToken: response.accessToken,
+      currentPassword: password,
+    });
+    return { mustChangePassword: true, accessToken: response.accessToken };
+  }
+
+  clearPendingPasswordChange();
 
   // Evitar que otra cuenta transmita los puntos GPS del conductor anterior (persistido en SQLite)
   const previousAccount = await getTrackingAccount();
@@ -55,9 +92,11 @@ export async function signIn(username: string, password: string, totpCode?: stri
   await setTrackingAccount(normalizedUsername);
 
   await saveSessionTokens({ accessToken: response.accessToken, refreshToken: response.refreshToken }, true);
+  return { mustChangePassword: false, accessToken: response.accessToken };
 }
 
 export async function expireSession() {
+  clearPendingPasswordChange();
   queryClient.clear();
   await clearSessionTokens();
 }
