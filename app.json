@@ -22,6 +22,14 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#DDF3FE",
+          "image": "./assets/branding/flash-pack-truck.png",
+          "imageWidth": 220
+        }
+      ],
       "expo-secure-store",
       "./plugins/withQuotedReactNativeBundleScript",
       [
