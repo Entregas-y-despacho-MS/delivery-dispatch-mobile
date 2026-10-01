@@ -27,7 +27,15 @@ import {
   checkPasswordRequirements,
   type ChangePasswordFormValues,
 } from '@/features/auth/change-password-schema';
-import { getPendingPasswordChange } from '@/features/auth/auth-service';
+import {
+  executeChangePassword,
+  getChangePasswordFailure,
+} from '@/features/auth/change-password-service';
+import {
+  clearPendingPasswordChange,
+  getPendingPasswordChange,
+  signIn,
+} from '@/features/auth/auth-service';
 import { colors } from '@/theme/tokens';
 
 function BrandMark() {
@@ -104,12 +112,50 @@ export default function ChangePasswordScreen() {
     );
   };
 
-  const submit = handleSubmit(async (values) => {
-    // La integración completa con el servicio se conectará en la Etapa 3
-    Alert.alert(
-      'Actualizar contraseña',
-      `Contraseña válida lista para enviar. Nueva: ${values.newPassword ? '******' : ''}`,
-    );
+  const submit = handleSubmit(async ({ newPassword }) => {
+    const pending = getPendingPasswordChange();
+    const token = pending?.accessToken;
+    const username = pending?.username;
+    const effectiveCurrentPassword = currentPassword || pending?.currentPassword;
+
+    if (!token || !effectiveCurrentPassword || !username) {
+      Alert.alert(
+        'Sesión requerida',
+        'No se encontró una sesión activa para cambiar la contraseña. Inicia sesión nuevamente.',
+        [
+          {
+            text: 'Aceptar',
+            onPress: () => {
+              clearPendingPasswordChange();
+              router.replace('/(auth)/login');
+            },
+          },
+        ],
+      );
+      return;
+    }
+
+    try {
+      await executeChangePassword(token, effectiveCurrentPassword, newPassword);
+
+      // Limpiar el estado de cambio pendiente
+      clearPendingPasswordChange();
+
+      // Re-autenticación automática con la nueva contraseña
+      await signIn(username, newPassword);
+
+      router.replace('/(app)/(tabs)');
+    } catch (error) {
+      const failure = getChangePasswordFailure(error);
+      if (failure.kind === 'session-expired') {
+        clearPendingPasswordChange();
+        Alert.alert(failure.title, failure.message, [
+          { text: 'Iniciar sesión', onPress: () => router.replace('/(auth)/login') },
+        ]);
+        return;
+      }
+      Alert.alert(failure.title, failure.message);
+    }
   });
 
   return (

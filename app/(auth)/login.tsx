@@ -49,7 +49,14 @@ export default function LoginScreen() {
       return;
     }
     try {
-      await signIn(identifier, password, totpCode);
+      const result = await signIn(identifier, password, totpCode);
+      if (result.mustChangePassword) {
+        router.replace({
+          pathname: '/(auth)/change-password',
+          params: { currentPassword: password },
+        });
+        return;
+      }
       router.replace('/(app)/(tabs)');
     } catch (error) {
       const failure = getLoginFailure(error);
