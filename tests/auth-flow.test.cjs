@@ -218,3 +218,29 @@ test('an old 401 cannot replay a request under a new login', async () => {
     accessToken: 'A9', refreshToken: 'R9',
   });
 });
+
+test('login with mustChangePassword: true returns indicator and does not mark session authenticated', async () => {
+  const harness = createHarness(async (config) => {
+    if (config.url === '/auth/login') {
+      return ok(config, {
+        accessToken: 'TEMP_A1',
+        refreshToken: 'TEMP_R1',
+        mustChangePassword: true,
+      });
+    }
+    throw new Error(`Unexpected URL: ${config.url}`);
+  });
+
+  const result = await harness.auth.signIn('new_driver', 'temp_pass');
+  assert.deepEqual(result, { mustChangePassword: true, accessToken: 'TEMP_A1' });
+  // La sesión NO debe marcarse como autenticada todavía
+  assert.notEqual(harness.session.getSessionStatus(), 'authenticated');
+  assert.equal(harness.storage.size, 0);
+  // El estado temporal en memoria debe contener los datos
+  assert.deepEqual(harness.auth.getPendingPasswordChange(), {
+    username: 'new_driver',
+    accessToken: 'TEMP_A1',
+    currentPassword: 'temp_pass',
+  });
+});
+
