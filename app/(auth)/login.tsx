@@ -177,7 +177,7 @@ export default function LoginScreen() {
 
             <Pressable
               accessibilityRole="button"
-              onPress={() => Alert.alert('Recuperar acceso', 'La recuperación de contraseña aún no está disponible.')}
+              onPress={() => router.push('/(auth)/forgot-password')}
               className="mt-2 min-h-11 self-end justify-center"
             >
               <AppText className="font-semibold underline" style={{ color: colors.brand }}>¿Olvidaste tu contraseña?</AppText>
