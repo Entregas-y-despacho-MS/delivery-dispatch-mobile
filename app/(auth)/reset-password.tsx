@@ -140,7 +140,7 @@ export default function ResetPasswordScreen() {
               <Pressable
                 accessibilityLabel="Volver"
                 accessibilityRole="button"
-                onPress={() => router.back()}
+                onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'))}
                 className="h-11 w-11 items-center justify-center rounded-xl border border-border bg-white pressed:opacity-70"
               >
                 <ArrowLeft size={20} color={colors.ink} />
