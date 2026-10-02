@@ -1,8 +1,9 @@
 import { ActivityIndicator, View } from 'react-native';
 import { AppText } from '@/components/ui/AppText';
+import { colors } from '@/theme/tokens';
 
 export function LoadingView() {
-  return <View className="items-center justify-center p-8"><ActivityIndicator color="#2563EB" /></View>;
+  return <View className="items-center justify-center p-8"><ActivityIndicator color={colors.brand} /></View>;
 }
 
 export function EmptyView({ title, description }: { title: string; description?: string }) {
