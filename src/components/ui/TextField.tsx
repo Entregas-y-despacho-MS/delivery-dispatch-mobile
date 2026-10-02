@@ -70,7 +70,7 @@ export function TextField({
         />
         {trailingAction ? <View className="ml-2">{trailingAction}</View> : null}
       </View>
-      {error ? <AppText accessibilityLiveRegion="polite" className="text-sm leading-5" style={{ color: colors.red }}>{error}</AppText> : null}
+      {error ? <AppText variant="error" accessibilityLiveRegion="polite">{error}</AppText> : null}
     </View>
   );
 }
