@@ -14,12 +14,14 @@ La fuente canónica del proyecto móvil es:
 Usa nombres semánticos y no hexadecimales dentro de las pantallas:
 
 - lienzo: `bg-canvas` o el token equivalente;
-- superficie: `bg-white` o token de superficie;
+- superficie: `bg-surface`;
 - texto principal: `text-ink`;
 - metadatos: `text-slate` y `text-muted`;
 - estructura: `border-border`;
-- acción primaria: `bg-brand text-white`;
-- error: `bg-danger` con texto contrastado.
+- acción primaria: `bg-action` con texto `colors.ink` (naranja, igual que el botón principal de la web);
+- foco y selección: `border-brand` / `colors.brand`;
+- éxito: `text-success` sobre `bg-success-soft`;
+- error: `bg-danger` con texto contrastado, o `text-danger` sobre `bg-danger-soft`. Los mensajes de error usan `<AppText variant="error">` acompañado de un icono `CircleAlert`.
 
 El color de marca se reserva para la acción primaria, selección, foco o identidad. Los estados deben acompañarse de texto o icono; el color nunca es el único significado.
 

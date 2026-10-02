@@ -1,5 +1,6 @@
 import { useState, type ReactNode, type Ref } from 'react';
 import { TextInput, View } from 'react-native';
+import { CircleAlert } from 'lucide-react-native';
 import { AppText } from '@/components/ui/AppText';
 import { colors } from '@/theme/tokens';
 
@@ -46,7 +47,7 @@ export function TextField({
       <View
         className={[
           'min-h-[54px] flex-row items-center rounded-2xl border bg-white px-4',
-          error ? 'border-danger' : focused ? 'border-turquoise' : 'border-border',
+          error ? 'border-danger' : focused ? 'border-brand' : 'border-border',
         ].join(' ')}
       >
         {leadingIcon ? <View className="mr-3">{leadingIcon}</View> : null}
@@ -64,13 +65,20 @@ export function TextField({
           autoCapitalize={autoCapitalize}
           autoCorrect={autoCorrect}
           autoComplete={autoComplete}
-          selectionColor={colors.turquoise}
+          selectionColor={colors.brand}
           onFocus={() => setFocused(true)}
           className="min-h-[52px] flex-1 py-0 text-[15px] text-ink"
         />
         {trailingAction ? <View className="ml-2">{trailingAction}</View> : null}
       </View>
-      {error ? <AppText accessibilityLiveRegion="polite" className="text-sm leading-5" style={{ color: colors.red }}>{error}</AppText> : null}
+      {error ? (
+        <View className="flex-row items-start gap-1.5">
+          <View className="pt-0.5" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <CircleAlert size={16} color={colors.red} />
+          </View>
+          <AppText variant="error" accessibilityLiveRegion="polite" className="flex-1">{error}</AppText>
+        </View>
+      ) : null}
     </View>
   );
 }
