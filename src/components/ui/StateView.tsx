@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { CircleAlert } from 'lucide-react-native';
 import { AppText } from '@/components/ui/AppText';
@@ -8,8 +9,18 @@ export function LoadingView() {
   return <View className="items-center justify-center p-8"><ActivityIndicator color={colors.brand} /></View>;
 }
 
-export function EmptyView({ title, description }: { title: string; description?: string }) {
-  return <View className="items-center justify-center p-8"><AppText variant="heading" className="text-center">{title}</AppText>{description && <AppText className="mt-2 text-center">{description}</AppText>}</View>;
+export function EmptyView({ title, description, icon }: { title: string; description?: string; icon?: ReactNode }) {
+  return (
+    <View className="items-center justify-center p-8">
+      {icon ? (
+        <View className="mb-3" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {icon}
+        </View>
+      ) : null}
+      <AppText variant="heading" className="text-center">{title}</AppText>
+      {description ? <AppText className="mt-2 text-center">{description}</AppText> : null}
+    </View>
+  );
 }
 
 interface ErrorViewProps {
