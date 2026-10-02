@@ -22,7 +22,7 @@ export function PrimaryButton({ label, onPress, loading, variant = 'primary', tr
       accessibilityState={{ disabled: loading }}
       disabled={loading}
       onPress={onPress}
-      className={['min-h-[52px] items-center justify-center rounded-xl border p-3 pressed:opacity-80 disabled:opacity-60', className].join(' ')}
+      className={['min-h-[52px] flex-row items-center justify-center gap-2 rounded-xl border p-3 pressed:opacity-80 disabled:opacity-60', className].join(' ')}
     >
       {loading ? <ActivityIndicator color={textColor} /> : <>
         <AppText className="font-bold" style={{ color: textColor }}>{label}</AppText>
