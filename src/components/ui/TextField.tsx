@@ -1,5 +1,6 @@
 import { useState, type ReactNode, type Ref } from 'react';
 import { TextInput, View } from 'react-native';
+import { CircleAlert } from 'lucide-react-native';
 import { AppText } from '@/components/ui/AppText';
 import { colors } from '@/theme/tokens';
 
@@ -70,7 +71,14 @@ export function TextField({
         />
         {trailingAction ? <View className="ml-2">{trailingAction}</View> : null}
       </View>
-      {error ? <AppText variant="error" accessibilityLiveRegion="polite">{error}</AppText> : null}
+      {error ? (
+        <View className="flex-row items-start gap-1.5">
+          <View className="pt-0.5" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <CircleAlert size={16} color={colors.red} />
+          </View>
+          <AppText variant="error" accessibilityLiveRegion="polite" className="flex-1">{error}</AppText>
+        </View>
+      ) : null}
     </View>
   );
 }
